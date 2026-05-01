@@ -1,0 +1,9 @@
+\frametitle{?Qué tan útil es aprender programación funcional? }
+    \begin{enumerate}
+        \item Es un estilo de escribir código en cualquier lenguaje.
+        \item Es como un cambio de chip en la manera de pensar en programación declarativa.
+    \end{enumerate}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.6\linewidth]{figs/fp1.png}
+    \end{figure}
