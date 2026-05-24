@@ -1,0 +1,502 @@
+\documentclass{beamer}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern}
+\usepackage{algorithmic, algorithm, listings, tikz}
+\usepackage{circuitikz}
+
+
+
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{shapes.geometric, arrows, positioning}
+
+\definecolor{nubankpurple}{RGB}{130, 10, 209}
+\definecolor{lambdaorange}{RGB}{255, 140, 0}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{ 150 , 150 , 150 }
+\definecolor{handwriting}{rgb}{0.6, 0.2, 0.2}
+
+\lstset{
+    language=Java,
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\scriptsize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstdefinelanguage{Clojure}{
+    morekeywords={defn, def, fn, if, let, do, str, println, assoc, conj, first, rest},
+    sensitive=true,
+    morecomment=[l]{;},
+    morestring=[b]",
+}
+
+\usetheme[pageofpages=of,logo=logo_semillero_fp.png]{Unipd}
+
+\title{Sesión 4: Funciones como valores}
+\subtitle{Semillero en Ciencias de la Computación}
+\author[Rodríguez, López]{Tomás Rodríguez \and Santiago López}
+
+\date{Mayo 22, 2026}
+
+\AtBeginSection[]
+{
+  \begin{frame}
+    \frametitle{Tabla de Contenidos}
+    \tableofcontents[currentsection,hideothersubsections,sectionstyle=show/hide]
+  \end{frame}
+}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Tabla de contenidos}
+    \tableofcontents    
+\end{frame}
+
+\begin{frame}{Punto Principal de la Sesión}
+    \begin{block}{El Secreto de la Mantenibilidad}
+        Tratar las funciones como \textbf{valores} proporciona la flexibilidad necesaria para elaborar código mantenible y altamente cohesivo.
+    \end{block}
+    
+    \vspace{0.3cm}
+    \textbf{¿Qué significa esto?}
+    Que una función no es solo un bloque estático de instrucciones. Es un dato más que podemos asignar a variables, \textbf{pasar como argumento} a otras funciones o \textbf{retornarlo} como resultado.
+    
+    \vspace{0.3cm}
+    \textbf{Nuestra Historia de Hoy:} Construiremos el motor de reglas de un Juego de Palabras (\textit{Ranking de palabras}) para ver esto en acción.
+\end{frame}
+
+\section{Funciones como valor de parámetro}
+
+\begin{frame}[fragile]{Composición de funciones}
+    \textbf{Composición:}
+    $$
+        (f \circ g )( x) =f(g(x))
+    $$
+    
+    
+    \vspace{0.3cm}
+    En Clojure:
+    \begin{center}
+        \texttt{(comp f g)}
+    \end{center}
+    
+    Ejemplo:
+
+    \begin{lstlisting}[language=Clojure]
+(require '[clojure.string :as str])
+(def procesar-texto (comp str/upper-case str/trim))
+
+(procesar-texto "   hola clojure   ")
+;; => "HOLA CLOJURE"
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item De acuerdo con el ejemplo, ¿Qué hace la función \textbf{trim}?
+    \end{itemize}
+    
+\end{frame}
+
+\begin{frame}[fragile]{1a. Ordenar por puntaje (Fijo)}
+    \begin{exampleblock}{Requerimiento del Cliente (1a)}
+        \textit{"Necesito calcular el puntaje base de una palabra. El puntaje es la cantidad de letras que quedan si eliminamos todas las letras 'a'. Luego, hay que ordenar las palabras según este puntaje."}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Implemente la función de costo \\
+    \textit{Hint: ¿Qué hace la función replace en clojure?} \\
+    https://onecompiler.com/clojure
+\end{frame}
+
+\begin{frame}[fragile]{1a. Ordenar por puntaje (Fijo)}
+    \begin{exampleblock}{Requerimiento del Cliente (1a)}
+        \textit{"Necesito calcular el puntaje base de una palabra. El puntaje es la cantidad de letras que quedan si eliminamos todas las letras 'a'. Luego, hay que ordenar las palabras según este puntaje."}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Implemente la función de costo
+     \begin{lstlisting}[language=Clojure]
+(require '[clojure.string :as str])
+(def words '("java" "ada" "scala" "haskell" "rust"))
+
+(def score (comp count #(str/replace % "a" "")))
+    \end{lstlisting}
+\end{frame}
+
+
+\begin{frame}[fragile]{1a. Ordenar por puntaje (Fijo)}
+    \begin{exampleblock}{Requerimiento del Cliente (1a)}
+        \textit{"Necesito calcular el puntaje base de una palabra. El puntaje es la cantidad de letras que quedan si eliminamos todas las letras 'a'. Luego, hay que ordenar las palabras según este puntaje."}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Implemente la función de ordenamiento \\
+    \textit{Hint: ¿Qué hace la función sort-by?}
+\end{frame}
+
+\begin{frame}[fragile]{1a. Ordenar por puntaje (Fijo)}
+    \begin{exampleblock}{Requerimiento del Cliente (1a)}
+        \textit{"Necesito calcular el puntaje base de una palabra. El puntaje es la cantidad de letras que quedan si eliminamos todas las letras 'a'. Luego, hay que ordenar las palabras según este puntaje."}
+    \end{exampleblock}
+
+    Implementamos la regla usando composición y ordenamos de forma directa:
+
+    \begin{lstlisting}[language=Clojure]
+(require '[clojure.string :as str])
+(def words '("java" "ada" "scala" "haskell" "rust"))
+
+(def score (comp count #(str/replace % "a" "")))
+
+(defn ranked-words-naive [words]
+  (reverse (sort-by score words)))
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{1b. Un pequeño cambio}
+    \begin{exampleblock}{Requerimiento del Cliente (1b)}
+        \textit{"Las reglas cambiaron. Ahora sumamos 5 puntos de bonus si la palabra tiene 'c', y restamos 7 si tiene 's'. ¡Y no quiero que reescriban todo el sistema de ordenamiento por este cambio!"}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Implemente el requerimiento.
+
+    \textit{Hint: ¿Qué hace la función includes? en clojure?} \\
+\end{frame}
+
+\begin{frame}[fragile]{1b. Un pequeño cambio}
+    \begin{exampleblock}{Requerimiento del Cliente (1b)}
+        \textit{"Las reglas cambiaron. Ahora sumamos 5 puntos de bonus si la palabra tiene 'c', y restamos 7 si tiene 's'. ¡Y no quiero que reescriban todo el sistema de ordenamiento por este cambio!"}
+    \end{exampleblock}
+
+    \textbf{Solución:}
+
+    \begin{lstlisting}[language=Clojure]
+
+(defn ranked-words [word-score words]
+  (->> words
+       (sort-by word-score)
+       reverse))
+    \end{lstlisting}
+
+    \begin{enumerate}
+        \item ¿Qué hace $->$ en clojure?
+        \item ¿Qué hace $->>$ en clojure?
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Thread-First Macro (\texttt{->})}
+    
+    \textbf{¿Cómo funciona?} \\
+    Inserta el resultado de cada expresión como el \textbf{primer argumento} de la siguiente función.
+    
+    \vspace{0.5cm}
+    
+    \textbf{Caso de uso ideal:} \\
+    Transformación de estructuras de datos como mapas o registros (usando funciones como \texttt{assoc}, \texttt{dissoc}, \texttt{update}).
+    
+    \vspace{0.5cm}
+    
+    \textbf{Ejemplo:}
+\begin{lstlisting}[language=Clojure]
+(assoc (conj (dissoc {:a 1 :b 2} :a) [:c 3]) :d 4)
+;; => {:b 2, :c 3, :d 4}
+
+(-> {:a 1 :b 2}
+    (dissoc :a)   
+    (conj [:c 3]) 
+    (assoc :d 4))
+    ;; => {:b 2, :c 3, :d 4}
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Thread-Last Macro (\texttt{->>})}
+    
+    \textbf{¿Cómo funciona?} \\
+    Inserta el resultado de cada expresión como el \textbf{último argumento} de la siguiente función.
+    
+    \vspace{0.5cm}
+    
+    \textbf{Caso de uso ideal:} \\
+    Procesamiento de secuencias y colecciones (usando funciones como \texttt{map}, \texttt{filter}, \texttt{reduce}).
+    
+    \vspace{0.5cm}
+    
+    \textbf{Ejemplo:}
+\begin{lstlisting}[language=Clojure]
+(reduce + (map inc (filter even? [1 2 3 4 5 6])))
+;; => 15
+
+(->> [1 2 3 4 5 6]
+     (filter even?) ;; [2 4 6]
+     (map inc)      ;; [3 5 7]
+     (reduce +))    ;; => 15
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Funciones de Orden Superior}
+    
+    \begin{block}{Problema}
+        Si nuestra lógica de negocio cambia, no queremos reescribir nuestra función de ordenamiento (\texttt{ranked-words}).
+    \end{block}
+    
+    
+    \vspace{0.3cm}
+    \textbf{Solución:} Si tratamos a la función de calcular puntaje como un \textbf{valor}, podemos pasarla por parámetro. Así, la función que ordena delega la lógica de negocio a quien la llama.
+    
+    \vspace{0.3cm}
+    \begin{center}
+        \begin{tikzpicture}[node distance=3cm, auto, thick]
+            \node[draw, rounded corners, fill=lambdaorange!30, text width=2.5cm, align=center] (motor) {Función de Ordenamiento};
+            \node[draw, rounded corners, fill=blue!10, text width=2cm, align=center, left=of motor] (regla) {Regla de Puntaje};
+            \draw[->, dashed] (regla) -- node[above]{\tiny Se pasa como argumento} (motor);
+        \end{tikzpicture}
+    \end{center}
+\end{frame}
+
+\begin{frame}{Funciones de Orden Superior}
+    
+    \begin{block}{Definición}
+        Una \textit{función de orden superior} es una función que realiza al menos una de estas dos acciones: recibe otra función como parámetro (argumento), o devuelve una función como resultado
+    \end{block}
+    
+\end{frame}
+
+
+\begin{frame}[fragile]{Refactorizando}
+
+    Podemos ir más allá, dejando funciones pequeñas con responsabilidades pequeñas.
+
+    \vspace{0.5cm}
+    
+    \textbf{Código completo:}
+
+    \begin{lstlisting}[language=Clojure]
+(defn bonus [word] (if (str/includes? word "c") 5 0))
+(defn penalty [word] (if (str/includes? word "s") 7 0))
+
+(defn total-score [word]
+  (- (+ (score word) (bonus word)) (penalty word)))
+
+(defn ranked-words [word-score words]
+  (->> words
+       (sort-by word-score)
+       reverse))
+    \end{lstlisting}
+\end{frame}
+
+\begin{emptyframe}
+    ¡El cliente contraataca!
+\end{emptyframe}
+
+\begin{frame}[fragile]{1c. Mostrar puntajes}
+    \begin{exampleblock}{Requerimiento del Cliente (1c)}
+        \textit{"Para el panel de administración, no necesito ordenar las palabras. Solo necesito ver una lista cruda con los puntajes calculados de las palabras actuales."}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Implementar el requerimiento.
+\end{frame}
+
+\begin{frame}[fragile]{1c. Mostrar puntajes}
+    \begin{exampleblock}{Requerimiento del Cliente (1c)}
+        \textit{"Para el panel de administración, no necesito ordenar las palabras. Solo necesito ver una lista cruda con los puntajes calculados de las palabras actuales."}
+    \end{exampleblock}
+
+    \textbf{Solución:}
+    
+    \begin{lstlisting}[language=Clojure]
+
+(defn word-scores [word-score words] 
+  (map word-score words))
+    \end{lstlisting}
+\end{frame}
+
+\section{Funciones como valor de retorno}
+
+\begin{frame}[fragile]{2d. Filtrar por Threshold }
+    \begin{exampleblock}{Requerimientos del Cliente (2d y 2e)}
+        \textit{"Quiero un reporte que traiga solo las palabras con un puntaje mayor a 1"}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Implemente este requerimiento.
+\end{frame}
+
+
+\begin{frame}[fragile]{2d. Filtrar por Threshold }
+    \begin{exampleblock}{Requerimientos del Cliente (2d y 2e)}
+        \textit{"Quiero un reporte que traiga solo las palabras con un puntaje mayor a x"}
+    \end{exampleblock}
+
+    \textbf{Solución:}
+    
+    \begin{lstlisting}[language=Clojure]
+(defn highest-words-naive [word-score words threshold]
+    (filter #(> (word-score %) threshold) words))
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Un problema con el cliente}
+    \begin{exampleblock}{Cliente}
+        \textit{"La API es muy incómoda de usar!!! Tengo hacer código repetitivo para un cambio muy mínimo!!"}
+    \end{exampleblock}
+
+    \textbf{Por ejemplo:}
+    \begin{lstlisting}[language=Clojure]
+(defn highest-words-naive [word-score words threshold]
+    (filter #(> (word-score %) threshold) words))
+
+;; El desarrollador cliente tiene que repetir argumentos:
+(highest-words-naive total-score words 1)
+(highest-words-naive total-score words 3)
+(highest-words-naive total-score words 5)
+    \end{lstlisting}
+\end{frame}
+
+
+\begin{frame}[fragile]{Un problema con el cliente}
+    \begin{exampleblock}{Cliente}
+        \textit{"La API es muy incómoda de usar!!! Tengo hacer código repetitivo para un cambio muy mínimo!!"}
+    \end{exampleblock}
+
+    \begin{alertblock}{El Problema}
+        Exigir pasar la lógica de puntaje y la lista de palabras \textbf{cada vez} que solo queremos cambiar el tresshold genera redundancia y una mala API.
+    \end{alertblock}
+\end{frame}
+
+\begin{frame}[fragile]{Una API más cómoda}
+    \begin{exampleblock}{Cliente}
+        \textit{"La API es muy incómoda de usar!!! Tengo hacer código repetitivo para un cambio muy mínimo!!"}
+    \end{exampleblock}
+
+    \textbf{Ejercicio:} Salve su empleo.
+\end{frame}
+
+\begin{frame}[fragile]{Una API más cómoda}
+    \begin{exampleblock}{Cliente}
+        \textit{"La API es muy incómoda de usar!!! Tengo hacer código repetitivo para un cambio muy mínimo!!"}
+    \end{exampleblock}
+
+    \textbf{Solución:}
+
+    \begin{lstlisting}[language=Clojure]
+
+(defn highest-words [word-score words]
+  (fn [threshold]
+    (filter #(> (word-score %) threshold) words)))
+    \end{lstlisting}
+
+    ¿Qué está retornando esta función?
+\end{frame}
+
+\begin{frame}[fragile]{Una API más cómoda}
+
+    \textbf{Código completo:} 
+
+    \begin{lstlisting}[language=Clojure]
+
+(defn highest-words [word-score words]
+  (fn [threshold]
+    (filter #(> (word-score %) threshold) words)))
+
+;; 'higher-than' es ahora una funcion!
+(def higher-than 
+  (highest-words total-score words))
+
+;; Ejecucion limpia y hermosa para el cliente final:
+user=> (higher-than 0)
+user=> (higher-than 5)
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}{ Closures: Fabricando funciones}
+    Ya sabemos como recibir funciones por parámetro, pero el paradigma funcional también permite \textbf{retornar} funciones como resultado.
+
+    \vspace{0.3cm}
+
+    \begin{block}{Definición}
+    \textit{Closure} es una función que ``cierra'' o captura las variables del contexto inmediato en el momento que fue creada.
+    \end{block}
+    \begin{itemize}
+        \item ¿Qué closure vemos en la última solución?
+    \end{itemize}
+    
+\end{frame}
+
+
+\begin{frame}{Currying y Diseño de APIs}
+    El \textbf{Currying} (o aplicación parcial) es una técnica donde una función que toma múltiples argumentos se transforma en una serie de funciones que toman \textbf{un solo argumento}.
+    
+    \vspace{0.3cm}
+    \textbf{¿Para qué sirve en la práctica?}
+    \begin{enumerate}
+        \item \textbf{Configuración previa:} ``Pre-cargamos'' una función con los parámetros pesados o estáticos (como la lista de palabras y las reglas de negocio).
+        \item \textbf{Retorno diferido:} Retornamos una nueva función ligera que solo pide el último dato que falta (el umbral).
+        \item \textbf{Limpia la API:} El usuario final de nuestro código tiene una experiencia mucho más cómoda.
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{?}
+    ¿Qué pasaría si lo único que quiero ``precargar'' es la lista de palabras a procesar?
+\end{frame}
+
+\begin{frame}[fragile]{Partial}
+    Pruebe el siguiente código:
+
+    \begin{lstlisting}[language=Clojure]
+    (def suma5 (partial + 5))
+    (suma5 10)
+    \end{lstlisting}
+
+    ¿Qué cree que hace la función \textit{partial} aquí?
+\end{frame}
+
+
+\begin{frame}[fragile]{Partial}
+    \begin{block}{Definición:}
+        \textit{partial} toma una función $f$ y menos de los argumentos normales para $f$ y retorna una función que recibe el número restante de argumentos.
+    \end{block}
+
+    \textbf{Ejercicio:} Refactorice \textit{highest-words} usando \textit{partial}
+\end{frame}
+
+
+\section{Conclusiones}
+
+\begin{frame}{Conclusiones}
+    \begin{block}{1. Versatilidad}
+        Al pasar funciones como parámetros (\texttt{word-score}), separamos el ``¿Qué hacer?'' (nivel micro) del ``¿Cómo orquestarlo?'' (nivel macro).
+    \end{block}
+\end{frame}
+
+
+\begin{frame}{Conclusiones}
+    \begin{block}{2. APIs Ergonómicas}
+        Al retornar funciones (Currying), creamos herramientas pre-configuradas que ocultan la complejidad al consumidor de nuestro código.
+    \end{block}
+\end{frame}
+
+
+\begin{frame}{Conclusiones}
+    \begin{block}{3. La fuerza de la programación funcional}
+        La programación funcional no trata solo de evitar bucles \texttt{for}. Trata de \textbf{Composición}: construir sistemas robustos y complejos ensamblando pequeñas funciones puras como si fueran bloques de Lego, tratándolas como el \textbf{valor} más importante del lenguaje.
+    \end{block}
+\end{frame}
+
+\begin{emptyframe}
+    ¡Gracias!\\
+    \vspace{0.5cm}
+    \small {Hagamos ejercicios en 4Clojure.}
+\end{emptyframe}
+\end{document}
