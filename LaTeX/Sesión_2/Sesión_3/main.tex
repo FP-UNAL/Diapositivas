@@ -1,0 +1,727 @@
+\documentclass{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern}
+\usepackage{algorithmic, algorithm, listings , tikz }
+\usepackage{xcolor}
+\usepackage{minted}
+\usetikzlibrary{ arrows.meta }
+
+\usetikzlibrary{shapes.geometric, arrows, positioning}
+
+
+
+\definecolor{nubankpurple}{RGB}{130, 10, 209} % El morado de Nubank
+\definecolor{lambdaorange}{RGB}{255, 140, 0}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{ 150 , 150 , 150 }
+\definecolor{handwriting}{rgb}{0.6, 0.2, 0.2}
+
+\lstset{
+    language=Java,
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\scriptsize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstdefinelanguage{Clojure}{
+    morekeywords={filter,map,reduce,when-let,defn, def, fn, if, let, do, str, println, assoc, conj, first, rest},
+    sensitive=true,
+    morecomment=[l]{;},
+    morestring=[b]",
+}
+% Use Unipd as theme, with options:
+% - pageofpages: define the separation symbol of the footer page of pages (e.g.: of, di, /, default: of)
+% - logo: position another logo near the Unipd logo in the title page (e.g. department logo), passing the second logo path as option 
+% Use the environment lastframe to add the endframe text
+
+\usetheme[pageofpages=of]{Unipd}
+
+\title{Sesión 3: Funciones como Ciudadanos de Primera Clase }
+\subtitle{  Semillero en Ciencias de la Computación }
+\author[Ostos, Pedrozo ]{Joel Ostos \and Juan Pedrozo}
+
+\date{ Mayo 15, 2026 }
+
+% The next block of commands puts the table of contents at the beginning of each section and highlights the current section
+\AtBeginSection[]
+{
+  \begin{frame}
+    \frametitle{Tabla de Contenidos }
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{ Tabla de contenidos }
+    \tableofcontents    
+\end{frame}
+
+\section{Recapitulando}
+
+\begin{frame}
+\frametitle{Conceptos Teóricos Principales}
+\begin{itemize}
+    \item \textbf{Funciones Puras:} Retornan un solo valor que depende únicamente de sus argumentos, sin mutar ningún valor existente (cero efectos secundarios).
+    \item \textbf{Inmutabilidad:} Una vez que un dato es creado, no puede ser cambiado. En lugar de modificarlo, las funciones puras hacen copias de los datos.
+    \item \textbf{Programación Funcional:} Se puede definir formalmente como la programación usando funciones puras que manipulan valores inmutables.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{El Peligro de la Mutabilidad}
+\begin{itemize}
+    \item Modificar una estructura original en memoria rompe nuestra intuición y es una de las mayores causas de errores (bugs).
+    \item \textbf{Estado mutable compartido:} Ocurre cuando un estado puede ser modificado y además accedido por diferentes partes del código al mismo tiempo.
+    \item En lenguajes como Java, tener múltiples funciones apuntando a la misma referencia mutable produce resultados incoherentes y viola el principio de transparencia referencial.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Aplicación en Clojure}
+\begin{itemize}
+    \item \textbf{Inmutabilidad por defecto:} A diferencia de Java, en Clojure todas las colecciones base (vectores, listas y mapas) son inmutables desde su diseño.
+    \item \textbf{Copias Eficientes:} Se utiliza \textit{Structural Sharing} bajo el capó para que crear copias nuevas con los cambios deseados no sea costoso en memoria.
+    \item Funciones de actualización como \texttt{conj} y \texttt{assoc} siempre retornan un nuevo valor, manteniendo la pureza estructural y el original intacto.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Ejercicios Prácticos}
+\begin{itemize}
+    \item \textbf{Función Pura (IVA):} Creación de una función \texttt{calcular-iva} que recibe un precio y le suma el 19\%, garantizando que a misma entrada devuelve la misma salida, sin imprimir ni mutar nada.
+    \item \textbf{Estado Inmutable (Usuario):} Se definió un sistema de puntos usando un mapa, empleando \texttt{assoc} en la función \texttt{agregar-puntos} para retornar un nuevo estado, asegurando que el usuario original siga intacto.
+\end{itemize}
+\end{frame}
+
+%%========================================================================
+\section{ Funciones de primera clase }
+
+%%========================================================================
+\subsection{¿Que es una función de orden superior?}
+
+\begin{frame}[fragile]
+    \frametitle{¿Qué es una función de orden superior?}
+    \begin{itemize}
+        \item Recibe funciones como parametros o devuelve una función.
+        $$
+        \lambda f.\lambda x. fx
+        $$
+    \end{itemize}
+    \begin{center}
+    \begin{minipage}{0.4\textwidth}
+        \begin{lstlisting}[language=Clojure]
+    (defn aplicar [f x]
+        (f x))
+        \end{lstlisting}
+    \end{minipage}
+    \begin{minipage}{0.4\textwidth}
+    
+    \begin{lstlisting}[language=Clojure]
+    (defn sumar [x]
+      (fn [y]
+        (+ x y)))
+    \end{lstlisting}
+    
+    \end{minipage}
+        
+    \end{center}
+    
+    
+\end{frame}
+
+%%========================================================================
+\subsection{Funciones como datos}
+
+\begin{frame}[fragile]
+    \frametitle{Funciones como datos}
+    Las funciones se tratan como datos pues al igual que los datos, se pueden:
+    \begin{itemize}
+        \item Pasar.
+        \item Guardar.
+        \item Retornar.
+    \end{itemize}
+\end{frame}
+
+%%========================================================================
+
+%%========================================================================
+\subsection{Funciones de Primer orden vs Orden Superior}
+
+\begin{frame}[fragile]
+    \frametitle{Funciones de Primer orden vs Orden Superior}
+    \begin{itemize}
+        \item Las funciones de primer orden no reciben funciones como parametros.
+        \item No devuelven funciones.
+        \item Solo trabaja con tipos "simples".
+    \end{itemize}
+    
+\end{frame}
+
+%%========================================================================
+\subsection{Importancia de las funciones de Orden Superior.}
+
+\begin{frame}[fragile]
+    \frametitle{Importancia de las funciones de Orden Superior.}
+¿El siguiente código es corresponde a una función pura?
+\begin{lstlisting}[language=java]
+static List<String> rankedWords( List<String> words ) {
+  return words.stream()
+       .sorted(scoreComparator)
+       .collect(Collectors.toList());
+}
+\end{lstlisting}
+
+\end{frame}
+
+%%========================================================================
+%%========================================================================
+\subsection{Importancia de las funciones de Orden Superior.}
+
+\begin{frame}[fragile]
+    \frametitle{Importancia de las funciones de Orden Superior.}
+¿El siguiente código es corresponde a una función pura?
+\begin{lstlisting}[language=java]
+static List<String> rankedWords( List<String> words ) {
+  return words.stream()
+       .sorted(scoreComparator)
+       .collect(Collectors.toList());
+}
+\end{lstlisting}
+No, pues, tenemos una función \textbf{scoreComparator} que no se define dentro del scope
+de nuestra misma función, es decir, la \textit{signature} de nuestra función no nos dice
+la información completa de lo que hace, y una función pura debe hacerlo.
+
+\end{frame}
+
+%%========================================================================
+%%========================================================================
+\subsection{Importancia de las funciones de Orden Superior.}
+
+\begin{frame}[fragile]
+    \frametitle{Importancia de las funciones de Orden Superior.}
+¿El siguiente código es corresponde a una función pura?
+\begin{lstlisting}[language=java]
+static List<String> rankedWords( Comparator<String> comp , List<String> words ) {
+  return words.stream()
+       .sorted(comp)
+       .collect(Collectors.toList());
+}
+\end{lstlisting}
+Claramente, pues ahora la firma de la función corresponde con lo que hace, además, nos da total libertad de modificar el comparador, y además, esta es una función de Orden Superior pues toma como parametro otra función (comp).
+
+\end{frame}
+
+%%========================================================================
+
+%%========================================================================
+\section{Aplicación en Clojure}
+
+\begin{emptyframe}
+    Aplicación en Clojure
+\end{emptyframe}
+%%========================================================================
+\subsection{Entendiendo las funciones anónimas}
+
+\begin{frame}
+\frametitle{¿Qué es una Función Anónima?}
+\begin{itemize}
+    \item Una función anónima es, simplemente, una función que \textbf{no tiene nombre}.
+    \item Se crean sobre la marcha (on the fly) para ser usadas en el momento.
+    \item \textbf{El equivalente en otros lenguajes:} Esto es exactamente lo que en lenguajes como Python, Java, C++ o Ruby se conoce como \textbf{Funciones Lambda} (o \textit{Arrow Functions} en JavaScript).
+    \item Son extremadamente útiles cuando necesitamos pasar una operación rápida a funciones de orden superior como \texttt{map}, \texttt{filter} o \texttt{reduce}.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Sintaxis Clásica: La forma \texttt{fn}}
+\begin{itemize}
+    \item La forma más explícita de crear una lambda en Clojure es usando la palabra reservada \texttt{fn}.
+    \item \textbf{Estructura:} \texttt{(fn [argumentos] cuerpo)}
+\end{itemize}
+\vspace{0.5cm}
+\textbf{Ejemplo:} Una función que recibe un número y lo multiplica por 2.
+\begin{block}{Código Clojure}
+\begin{lstlisting}[language=Clojure]
+(fn [x] (* x 2))
+\end{lstlisting}
+\end{block}
+
+Si la usamos inmediatamente:
+\begin{block}{Evaluación}
+\begin{lstlisting}[language=Clojure]
+((fn [x] (* x 2)) 5) 
+;; Devuelve: 10
+\end{lstlisting}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Sintaxis Corta: El atajo \texttt{\#(...)}}
+\begin{itemize}
+    \item Como los programadores en Clojure usan lambdas todo el tiempo, existe una sintaxis reducida (un \textit{reader macro}) que nos ahorra escribir \texttt{fn} y los corchetes.
+    \item \textbf{Estructura:} \texttt{\#(cuerpo-de-la-funcion \%)}
+    \item Los argumentos se representan con el símbolo de porcentaje \texttt{\%}.
+\end{itemize}
+\vspace{0.3cm}
+\textbf{Reglas de los argumentos:}
+\begin{itemize}
+    \item \texttt{\%} o \texttt{\%1}: Representa el primer argumento.
+    \item \texttt{\%2}: Representa el segundo argumento.
+    \item \texttt{\%3}, \texttt{\%4}, etc.: Argumentos sucesivos.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Comparación de Sintaxis}
+Veamos cómo la misma "lambda" se va reduciendo con el atajo:
+
+\vspace{0.5cm}
+\textbf{Ejemplo 1: Sumar 10 a un número}
+\begin{itemize}
+    \item Con \texttt{fn}: \texttt{(fn [x] (+ x 10))}
+    \item Con atajo: \texttt{\#(+ \% 10)}
+\end{itemize}
+
+\vspace{0.5cm}
+\textbf{Ejemplo 2: Sumar dos números}
+\begin{itemize}
+    \item Con \texttt{fn}: \texttt{(fn [x y] (+ x y))}
+    \item Con atajo: \texttt{\#(+ \%1 \%2)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{¿Para qué las usamos en la vida real?}
+Su mayor poder está al combinarlas con Funciones de Orden Superior (colecciones).
+
+\vspace{0.5cm}
+\textbf{Multiplicar por 10 todos los elementos de un vector:}
+\begin{block}{\texttt{map} con \texttt{fn}}
+\begin{lstlisting}[language=Clojure]
+(map (fn [x] (* x 10)) [1 2 3 4])
+;; => (10 20 30 40)    
+\end{lstlisting}
+\end{block}
+
+\begin{block}{\texttt{map} con sintaxis corta (Lambda / Atajo)}
+\begin{lstlisting}[language=Clojure]
+(map #(* % 10) [1 2 3 4])
+;; => (10 20 30 40)
+\end{lstlisting}
+\end{block}
+\end{frame}
+
+\begin{frame}
+\frametitle{Resumen}
+\begin{itemize}
+    \item \textbf{Funciones Anónimas == Lambdas}: Funciones sin nombre para uso rápido.
+    \item \textbf{\texttt{fn [args] ...}}: Sintaxis completa, ideal para lambdas complejas, con múltiples expresiones o cuando necesitamos usar destructuración.
+    \item \textbf{\texttt{\#(... \% ...)}}: Sintaxis azucarada, ideal para operaciones matemáticas o transformaciones de una sola línea de código.
+\end{itemize}
+\vspace{1cm}
+\begin{center}
+    \Large ¡El dominio de las lambdas es el corazón de la programación funcional!
+\end{center}
+\end{frame}
+
+%%========================================================================
+\subsection{Funciones de Orden Superior: Nuestras principales herramientas}
+
+\begin{frame}[fragile]
+    \frametitle{Nuestras principales herramientas}
+    \begin{itemize}
+        \item Map.
+        \item Reduce.
+        \item Filter.
+    \end{itemize}
+    
+\end{frame}
+
+%%========================================================================
+
+\subsubsection{Map}
+\begin{frame}[fragile]
+    \frametitle{¿Qué es el Map?}
+    \begin{itemize}
+        \item Función de Orden Superior.
+        \item Aplica una función a cada elemento.
+        \item Devuelve una \textbf{nueva colección}.
+    \end{itemize}
+\end{frame}
+%%========================================================================
+\subsubsection{Definicón en Clojure}
+\begin{frame}[fragile]
+    \frametitle{¿Qué es el Map?}
+    \begin{center}
+    \begin{lstlisting}[language=Clojure]
+    (map f coll)  
+    \end{lstlisting}
+    \end{center}
+    Dónde $f$ es una función que se toma como parametro y $coll$ es una colección (lista, vector, set, etc...).\\
+    El resultado es una nueva colección que es el producto de aplicar $f$ a cada elemento
+    de $coll$
+    
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{Evaluación en Clojure}
+\begin{frame}[fragile]
+    \frametitle{¿Evaluación en Clojure?}
+
+    Map usa evaluación perezosa, o lo que es lo mismo, cada operación es calculada si 
+    y solo sí se usará finalmente, por lo tanto no tiene ningún problema de rendimiento
+    en las colecciones "infinitas" que provee Clojure.
+    Hace uso de las \textbf{lazy sequences}
+    \begin{block}{¿Qué es una secuencia?}
+        Es una abstracción sobre datos ordenados.
+        Permite recorrer elementos uno a uno.
+        \\ 
+        Una lazy sequence es una secuencia en la que cada objeto se produce bajo demanda
+    \end{block}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{Complejidad del Map}
+\begin{frame}[fragile]
+    \frametitle{¿Complejidad del Map?}
+    \begin{itemize}
+        \item \textbf{Tiempo:} O(n) pues es la aplicación de una función a cada elemento
+        de la colección, por tanto debe recorrerse completamente la colección.
+        $$
+        \{ f_{x_1} , f_{x_2}, \cdots, f_{x_n} \}
+        $$
+        \item \textbf{Memoria: } O(1) (incremental) ¿Por qué?
+    \end{itemize}
+\end{frame}
+
+%%========================================================================
+\subsubsection{Un pequeño vistazo bajo el mantel.}
+
+\begin{frame}[fragile]
+    \frametitle{¿Por qué es tan eficiente en memoria?}
+    Como se mencionó antes, Map es una función lazy, es decir, no tiene por qué calcular
+    todo el resultado ni copiar los elementos ni guardarlos en ninguna parte, sino que hace
+    función de los \textbf{streams} para que según se necesite Map de un resultado, es decir.\\ 
+    Map depende del contexto que la acompaña.\\ 
+    Map no hace esto:
+    $$
+    [\textit{Input completo}] \rightarrow [\textit{Output Completo}]
+    $$
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{Intuición e Idea Mental de Map}
+
+\begin{frame}[fragile]
+    \frametitle{Intuición}
+    \begin{itemize}
+        \item No es un loop tradicional.
+        \item Es una transformación declarativa.
+    \end{itemize}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\begin{frame}[fragile]
+    \frametitle{Importancia del Map}
+    \begin{itemize}
+        \item Reutilizable.
+        \item Componible.
+        \item Junto con Filter y Reduce son el \textbf{core} de las transformaciones
+        en la programación funcional.
+    \end{itemize}
+\end{frame}
+%%========================================================================
+
+\subsubsection{Reduce}
+\begin{frame}[fragile]
+    \frametitle{¿Qué es Reduce?}
+    \begin{itemize}
+        \item Función de Orden Superior.
+        \item Combina todos los elementos en uno solo.
+    \end{itemize}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\begin{frame}[fragile]
+    \frametitle{¿Qué es Reduce?}
+    \begin{center}
+    \begin{lstlisting}[language=Clojure]
+    (reduce f coll)  
+    (reduce f init coll)  
+    \end{lstlisting}
+    \end{center}
+    Dónde $f$ es una función acumuladora de dos argumentos que se toma como parametro y $coll$ es una colección (lista, vector, set, etc...).\\
+    El resultado es una nueva colección que es el producto de aplicar $f$ a los primeros dos elementos de $coll$, luego usar ese resultado y aplicarle $f$ a dicho resultado y al tercer elemento de $coll$, etc...
+\end{frame}
+%%========================================================================
+%%========================================================================
+\subsubsection{Background Teórico y Evaluación en Clojure}
+\begin{frame}[fragile]
+    \frametitle{Background Teórico y Evalución en Clojure}
+    \begin{itemize}
+        \item Formalmente se le suele llamar fold.
+        \item Es la base de muchas operaciones funcionales.
+        
+    \end{itemize}
+    Muchas funciones se pueden expresar como reduce:
+    \begin{itemize}
+        \item sum
+        \item map
+        \item filter
+    \end{itemize}
+    A pesar de todo, Reduce no es \textbf{lazy} por su definición no es dificil intuirlo
+    pues para acumular todo en un solo elemento solo es posible hacerlo si se aplica la transformación a todos los elementos.
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{Complejidad de Reduce}
+\begin{frame}[fragile]
+    \frametitle{Complejidad de Reduce}
+
+\begin{itemize}
+    \item \textbf{Tiempo: } O(1).
+    \item \textbf{Memoria: } O(1). Pues solo lleva el acumulador.
+\end{itemize}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{¿Cómo funciona por debajo?}
+    
+\begin{frame}[fragile]
+\frametitle{¿Cómo funciona por debajo?}
+Iterativamente podemos verla como la aplicación de la función que se pasó como parametro.
+$$
+( f( f(f init x_1 ) x_2 ) x_3) ...
+$$
+Toma el acumulador, aplica $f$ al siguiente elemento y repite hasta llegar al final de la
+secuencia.\\ 
+La implementación podría verse así:
+\begin{lstlisting}
+    (loop [acc init
+       xs coll]
+  (if (empty? xs)
+    acc
+    (recur (f acc (first xs))
+           (rest xs))))
+\end{lstlisting}
+
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{Concepto: Tail Recursion}
+    
+\begin{frame}[fragile]
+\frametitle{Recursión Tradicional}
+En la recursividad tradicional, el modelo se rige por una ejecución en diferido: primero se lanzan las llamadas recursivas y, solo tras alcanzar el caso base, se procede a recuperar los valores de retorno para calcular el resultado final. En este esquema, el sistema no obtiene el fruto del cálculo hasta que se ha completado el retroceso (unwinding) de cada llamada en la pila; es decir, cada paso queda en suspenso, ocupando memoria, a la espera de lo que devuelva el siguiente nivel.
+\begin{lstlisting}
+    public int factorialTradicional(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    // El calculo (n *) ocurre DESPUES de la llamada recursiva
+    return n * factorialTradicional(n - 1);
+    }
+\end{lstlisting}
+\end{frame}
+%%========================================================================
+%%========================================================================
+\subsubsection{Concepto: Tail Recursion}
+    
+\begin{frame}[fragile]
+\frametitle{Tail Recursion}
+Por el contrario, en la recursividad de cola, el cálculo es prioritario y precede a la llamada. El proceso opera de forma acumulativa: se computa el estado actual y se transfiere el resultado directamente al siguiente paso recursivo como un argumento. Esto permite que la instrucción final sea estrictamente la llamada a la función: (return (funcion-recursiva parametros)).
+
+\begin{lstlisting}
+public int factorialTail(int n, int acumulador) {
+    if (n <= 1) {
+        return acumulador;
+    }
+    // El calculo (n * acumulador) ocurre ANTES de la llamada recursiva
+    return factorialTail(n - 1, n * acumulador);
+    }
+\end{lstlisting}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\begin{frame}[fragile]
+\frametitle{Continuando.}
+
+Esencialmente, la recursividad de cola transforma el flujo en algo similar a un bucle; el valor de retorno de un paso es, sin alteraciones, el valor del siguiente, lo que permite al compilador optimizar el espacio y evitar el desbordamiento de la pila (stack overflow), ya que no es necesario mantener el contexto de los pasos anteriores.
+
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\subsubsection{Filter}
+\begin{frame}[fragile]
+    \frametitle{¿Qué es Filter?}
+    \begin{itemize}
+        \item Función de Orden Superior.
+        \item Selecciona elementos que cumplan una condición.
+    \end{itemize}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\begin{frame}[fragile]
+    \frametitle{¿Qué es Filter?}
+    \begin{center}
+    \begin{lstlisting}[language=Clojure]
+    (filter pred coll)  
+    \end{lstlisting}
+    \end{center}
+    Dónde $pred$ es una función booleana (retorna falso/verdadero)  que se toma como parametro y $coll$ es una colección (lista, vector, set, etc...).\\
+    El resultado son los elementos que cumplen el predicado.
+\end{frame}
+%%========================================================================
+%%========================================================================
+\subsubsection{Background Teórico y Evaluación en Clojure}
+\begin{frame}[fragile]
+    \frametitle{Background Teórico y Evalución en Clojure}
+    \begin{itemize}
+        \item Sencillamente basada en lógica booleana.
+        
+    \end{itemize}
+    A diferencia que Reduce y al igual que Map, Filter es de ejecución \textbf{lazy}, usa 
+    \textbf{lazy sequences}.
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{Complejidad de Filter}
+\begin{frame}[fragile]
+    \frametitle{Complejidad de Filter}
+
+\begin{itemize}
+    \item \textbf{Tiempo: } O(n).
+    \item \textbf{Memoria: } O(1) incremental.
+\end{itemize}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\subsubsection{¿Cómo funciona por debajo?}
+    
+\begin{frame}[fragile]
+\frametitle{¿Cómo funciona por debajo?}
+Es sencillamente una pregunta, por cada elemento que sea requerido se preguntará si cumple 
+la condición, en el caso de ser afirmativo entonces se incluye en la "bolsa" que llevamos
+y en el caso opuesto es descartado y se continúa con la ejecución.
+\begin{lstlisting}[language=Clojure]
+(lazy-seq
+  (when-let [s (seq coll)]
+    (let [x (first s)]
+      (if (pred x)
+        (cons x (filter pred (rest s)))
+        (filter pred (rest s))))))
+\end{lstlisting}
+
+\end{frame}
+%%========================================================================
+
+\subsubsection{Map vs Reduce vs Filter }
+\begin{frame}[fragile]
+\frametitle{Map vs Reduce vs Filter}
+\begin{table}[h!]
+\centering
+\scriptsize  % más pequeña que footnotesize
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Característica} & \textbf{map} & \textbf{filter} & \textbf{reduce} \\ \hline
+Operación & Transformar & Filtrar & Colapsar \\ \hline
+Entrada & Colección & Colección & Colección (+ init) \\ \hline
+Salida & Colección & Subconjunto & Valor \\ \hline
+Lazy & Sí & Sí & No \\ \hline
+Tiempo & O(n) & O(n) & O(n) \\ \hline
+Espacio & O(1) lazy & O(1) lazy & O(1) \\ \hline
+Cómo & Aplica función & Evalúa predicado & Función acumuladora \\ \hline
+Construcción & No modifica & No modifica & Colapsa \\ \hline
+Uso & Transformar datos & Filtrar datos & Reducir a valor \\ \hline
+\end{tabular}
+\caption{Comparación de funciones de orden superior en Clojure}
+\label{tab:map-filter-reduce}
+\end{table}
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+\section{Ejercicios Prácticos.}
+\begin{emptyframe}
+    Ejercicios Prácticos
+\end{emptyframe}
+%%========================================================================
+
+%%========================================================================
+
+\subsubsection{Ejercicio 1: Uso de Map}
+\begin{frame}[fragile]
+\frametitle{Ejercicio 1: Usando Map}
+\textbf{Objetivo: } Dado un vector de números [ 1 2 3 4 5 ], usar map para obtener un nuevo vector con el cuadrado de cada número.
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\subsubsection{Ejercicio 2: Uso de Reduce}
+\begin{frame}[fragile]
+\frametitle{Ejercicio 2: Usando Reduce}
+\textbf{Objetivo: } Usar reduce para calcular la multiplicación total de los elementos del vector.
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\subsubsection{Ejercicio 3: Uso de Filter}
+\begin{frame}[fragile]
+\frametitle{Ejercicio 3: Usando Filter}
+\textbf{Objetivo: } Usar filter para obtener solo los números pares del vector anterior
+\end{frame}
+%%========================================================================
+
+%%========================================================================
+
+\subsubsection{Ejercicio 4: Uniendo puntos!}
+\begin{frame}[fragile]
+\frametitle{Ejercicio 4: Usando los 3}
+\textbf{Objetivo: } Combinar las 3 funciones presentadas para calcular la suma de los cuadrados de los números impares de una lista.
+\end{frame}
+%%========================================================================
+
+\begin{emptyframe}
+    Gracias!
+\end{emptyframe}
+\end{document}
+
