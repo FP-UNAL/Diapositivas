@@ -1,0 +1,410 @@
+\documentclass{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{lmodern}
+\usepackage{algorithmic, algorithm, listings, tikz}
+\usepackage{xcolor}
+\usepackage{minted}
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{shapes.geometric, arrows, positioning}
+
+\definecolor{nubankpurple}{RGB}{130, 10, 209} 
+\definecolor{lambdaorange}{RGB}{255, 140, 0}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{150, 150, 150}
+\definecolor{handwriting}{rgb}{0.6, 0.2, 0.2}
+
+\lstset{
+    language=Java,
+    backgroundcolor=\color{backcolour},  
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\scriptsize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstdefinelanguage{Clojure}{
+    morekeywords={filter,map,reduce,mapcat,apply,concat,take,drop,range,iterate,lazy-seq,when-let,defn, def, fn, if, let, do, str, println, assoc, conj, first, rest, thread-last, ->>},
+    sensitive=true,
+    morecomment=[l]{;},
+    morestring=[b]",
+}
+
+\usetheme[pageofpages=of]{Unipd}
+
+\title{Sesión 5: Pipelines de Datos y Lazy Evaluation}
+\subtitle{Semillero en Ciencias de la Computación}
+\author[Juan Pedrozo]{Juan Andrés Pedrozo}
+
+\date{Mayo 29, 2026}
+
+\AtBeginSection[]
+{
+  \begin{frame}
+    \frametitle{Tabla de Contenidos}
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Tabla de contenidos}
+    \tableofcontents    
+\end{frame}
+
+\section{El Modelo Mental de los Pipelines}
+
+\begin{frame}
+    \frametitle{El Problema de Componer Funciones}
+    \begin{itemize}
+        \item En sesiones anteriores vimos \textbf{map}, \textbf{filter} y \textbf{reduce}.
+        \item Son herramientas poderosas para transformar datos inmutables.
+        \item Pero, ¿qué pasa cuando necesitamos aplicar múltiples transformaciones en secuencia?
+        \item Recordemos la composición de funciones $f(g(x))$ 
+        que vimos la sesión pasada. En programación funcional, esto se traduce en anidación.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{La extensión de código en Lisp}
+    Imaginemos que queremos:
+    \begin{enumerate}
+        \item Tomar una lista de números.
+        \item Elevarlos al cuadrado.
+        \item Filtrar solo los que sean impares.
+        \item Sumar todos los resultados
+        \end{enumerate}
+    \end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{La extensión de código en Lisp}
+    El código anidado se vería así:
+    \vspace{0.5cm}
+    \begin{lstlisting}[language=Clojure]
+(reduce + 
+  (filter odd? 
+    (map #(* % %) [1 2 3 4 5 6])))
+    \end{lstlisting}
+    \vspace{0.5cm}
+    ¿Cuál es el problema aquí? ¡El flujo de lectura choca con el flujo de evaluación!
+\end{frame}
+
+\begin{frame}
+    \frametitle{La Carga Cognitiva}
+    \begin{itemize}
+        \item Para leer el código anterior, nuestros ojos tienen que buscar la estructura más profunda \texttt{(map...)}.
+        \item Luego saltar a la izquierda hacia \texttt{(filter...)}.
+        \item Y finalmente saltar nuevamente a la izquierda hacia \texttt{(reduce...)}.
+        \item Esto no es escalable ni mantenible en procesos complejos de transformación de datos.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Pensando en Tuberías (Pipelines)}
+    Usualmente, en programación funcional sugiere modelar los programas secuenciales como tuberías de fábricas.
+    \begin{itemize}
+        \item Los datos entran por un extremo (materia prima).
+        \item Pasan por estaciones independientes.
+        \item Cada estación (map, filter) hace un trabajo específico y pasa la nueva colección a la siguiente.
+        \item Se prioriza el \textbf{QUÉ} sobre el CÓMO.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{El Macro Thread-Last (\texttt{->>})}
+    Clojure nos ofrece un macro llamado \texttt{thread-last} o "flecha doble" (\texttt{->>}).
+    \begin{itemize}
+        \item Toma una expresión inicial.
+        \item La inserta dinámicamente como el \textbf{último argumento} de la siguiente función.
+        \item Pasa el resultado de eso como el último argumento de la que sigue, y así sucesivamente.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Por qué el último argumento}
+    \begin{itemize}
+        \item En Clojure, por diseño, las funciones que operan sobre secuencias (\texttt{map}, \texttt{filter}, \texttt{reduce}, etc.) toman la colección como su \textbf{último argumento}.
+        \item Esto no es casualidad, está pensado para componer de manera hermosa con \texttt{->>}.
+    \end{itemize}
+    \begin{lstlisting}[language=Clojure]
+(map f coll)
+(filter pred coll)
+(reduce f init coll)
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Refactorizando al Pipeline}
+    Nuestro código anterior:
+    \begin{lstlisting}[language=Clojure]
+(reduce + (filter odd? (map #(* % %) [1 2 3 4 5 6])))
+    \end{lstlisting}
+    
+    Se convierte en:
+    \begin{lstlisting}[language=Clojure]
+(->> [1 2 3 4 5 6]
+     (map #(* % %))
+     (filter odd?)
+     (reduce +))
+    \end{lstlisting}
+    ¡Ahora se lee orgánicamente de arriba hacia abajo!
+\end{frame}
+
+\section{La pieza faltante: mapcat}
+
+\begin{frame}
+    \frametitle{Cuando \texttt{map} no es suficiente}
+    Sabemos que \texttt{map} transforma una colección de elementos aplicando una función uno a uno.
+    $$
+    f: x \rightarrow y 
+    $$
+    Por lo tanto, al mapear sobre $[x_1, x_2, x_3]$ obtenemos $[y_1, y_2, y_3]$.
+    Pero, ¿qué sucede cuando la función $f$ \textbf{devuelve otra colección}?
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{El Problema de las Colecciones Anidadas}
+    Imagina que tenemos un registro de estudiantes del semillero y los lenguajes que manejan.
+    \begin{lstlisting}[language=Clojure]
+(def estudiantes 
+  [{:nombre "Juan" :lenguajes ["Haskell" "Clojure"]}
+   {:nombre "Tomas" :lenguajes ["C" "C++"]}])
+    \end{lstlisting}
+    Queremos una lista plana con \textbf{todos} los lenguajes.
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Intento fallido con \texttt{map}}
+    Si usamos \texttt{map}:
+    \begin{lstlisting}[language=Clojure]
+(map :lenguajes estudiantes)
+;; (["Haskell" "Clojure"] ["C" "C++"])
+    \end{lstlisting}
+    Obtenemos una secuencia de vectores (lista de listas). Si queremos procesar los lenguajes, esta estructura anidada rompe nuestro pipeline.
+\end{frame}
+
+\begin{frame}
+    \frametitle{Introduciendo \texttt{mapcat} (flatMap)}
+    \begin{itemize}
+        \item En otros lenguajes funcionales, esta operación se conoce como \texttt{flatMap}.
+        \item En Clojure se llama \texttt{mapcat}.
+        \item Lo que hace es aplicar una función a cada elemento (como \texttt{map}) y luego aplastar o aplanar el resultado un nivel (como \texttt{concat}).
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{¿Cómo funciona por debajo?}
+    Podemos entender \texttt{mapcat} como la composición directa de \texttt{apply concat} y \texttt{map}.
+    \begin{lstlisting}[language=Clojure]
+(defn mi-mapcat [f coll]
+  (apply concat (map f coll)))
+    \end{lstlisting}
+    \vspace{0.5cm}
+    \textbf{Nota:} La implementación real en Clojure es ligeramente más compleja para mantener la pereza (lazy evaluation), pero semánticamente es idéntica.
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Solucionando el problema}
+    Ahora, usando \texttt{mapcat} con nuestros estudiantes:
+    \begin{lstlisting}[language=Clojure]
+(mapcat :lenguajes estudiantes)
+;; ("Haskell" "Clojure" "C" "C++")
+    \end{lstlisting}
+    Hemos aplanado la estructura, eliminando la barrera entre las colecciones internas, dejándola lista para el siguiente paso del pipeline.
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Uniendo Conceptos}
+    Ejemplo integrador: Obtener lenguajes \textbf{únicos} en mayúsculas.
+    \begin{lstlisting}[language=Clojure]
+(->> estudiantes
+     (mapcat :lenguajes)
+     (map clojure.string/upper-case)
+     (set)) 
+;; => #{"HASKELL" "C" "C++" "CLOJURE"}
+    \end{lstlisting}
+\end{frame}
+
+\section{Evaluación Perezosa (Lazy Sequences)}
+
+\begin{frame}
+    \frametitle{El Límite de las Colecciones Grandes}
+    Pensemos en la eficiencia de nuestros pipelines.
+    \begin{itemize}
+        \item Si tenemos una lista de un millón de usuarios.
+        \item Hacemos un \texttt{map} para modificar sus correos.
+        \item Luego un \texttt{filter} para quedarnos con cuentas activas.
+    \end{itemize}
+    En la evaluación tradicional estricta (\textbf{eager}), se crea un nuevo vector de 1 millón de elementos, y luego otro vector resultante. ¡Pico masivo de RAM!
+\end{frame}
+
+\begin{frame}
+    \frametitle{Eager vs Lazy Evaluation}
+    \textbf{Eager (Estricta):} Calcula todo inmediatamente. En el momento en que se llama a la función, el procesador quema ciclos para resolver cada elemento.
+    \vspace{0.5cm}
+    \textbf{Lazy (Perezosa):} Retrasa el cálculo hasta el último segundo posible. Promete que te dará los valores, pero no los procesa hasta que explícitamente se lo exiges (por ejemplo, para imprimirlos en pantalla o guardarlos en base de datos).
+\end{frame}
+
+\begin{frame}
+    \frametitle{La Magia del "Thunk"}
+    En ciencias de la computación teórica, esto se logra mediante "Thunks".
+    Un thunk es utilizado para inyectar un cálculo adicional en otro lugar. En Clojure, una Lazy Sequence es una estructura de datos donde el elemento de "resto" (la cola) no es un valor, sino una \textbf{función sin argumentos} que sabe cómo generar el siguiente elemento.
+\end{frame}
+
+\begin{frame}
+    \frametitle{Pipelines Perezosos en Clojure}
+    En Clojure, \texttt{map}, \texttt{filter}, \texttt{mapcat} (y muchas más) producen secuencias perezosas por defecto.
+    \begin{itemize}
+        \item Cuando haces un pipeline largo, Clojure \textbf{no} recorre la colección $n$ veces.
+        \item En su lugar, pide el elemento 1. Lo pasa por el map, luego por el filter. Si sobrevive, lo entrega.
+        \item Esto unifica conceptualmente la transformación de un elemento único y la iteración sin malgastar memoria.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Consecuencia Directa: El Infinito}
+    Si no calculamos todo de inmediato, las estructuras de datos pueden tener un tamaño infinito. ¡Podemos modelar matemáticas continuas!
+    \begin{lstlisting}[language=Clojure]
+(range)
+;; Representa todos los numeros enteros desde 0 hasta infinito.
+    \end{lstlisting}
+    \textbf{¡Ojo!} Si intentas imprimir \texttt{(range)} completo en el REPL, el entorno intentará evaluarlo y consumirá toda la memoria.
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Controlando el Infinito}
+    Para trabajar con secuencias infinitas usamos funciones limitadoras, principalmente \texttt{take} y \texttt{drop}.
+    \begin{lstlisting}[language=Clojure]
+;; Queremos los primeros 5 enteros pares del infinito
+(->> (range)
+     (filter even?)
+     (take 5))
+;; => (0 2 4 6 8)
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Otras secuencias infinitas: \texttt{repeat} y \texttt{cycle}}
+    \begin{lstlisting}[language=Clojure]
+(take 3 (repeat "Hola"))
+;; => ("Hola" "Hola" "Hola")
+
+(take 7 (cycle [1 2 3]))
+;; => (1 2 3 1 2 3 1)
+    \end{lstlisting}
+    \texttt{cycle} es extremadamente útil para rotar turnos, y/o colores de gráficos.
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Generación basada en funciones: \texttt{iterate}}
+    \texttt{iterate} toma una función y un valor inicial, y devuelve una secuencia infinita: $x, f(x), f(f(x)), ...$
+    \vspace{0.5cm}
+    Potencias de 2:
+    \begin{lstlisting}[language=Clojure]
+(take 5 (iterate #(* % 2) 1))
+;; => (1 2 4 8 16)
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Implementando nuestro propio Infinito}
+    Podemos usar el macro \texttt{lazy-seq} para definir recursión que suspende su evaluación.
+    \vspace{0.3cm}
+    \textbf{La sucesión de Fibonacci:}
+    \begin{lstlisting}[language=Clojure]
+(defn fib []
+  (map first (iterate (fn [[a b]] [b (+ a b)]) [0 1])))
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Analizando el Fibonacci Lazy }
+    \begin{itemize}
+        \item \texttt{iterate} genera una secuencia infinita y perezosa aplicando repetidamente la función de transición a partir del estado inicial \texttt{[0 1]}.
+        \item La función anónima \texttt{(fn [[a b]] [b (+ a b)])} calcula el siguiente par acumulador de manera diferida.
+        \item \texttt{map first} transforma la secuencia de pares extrayendo el primer elemento (\texttt{a}) \textbf{únicamente cuando es requerido} (por ejemplo, al evaluar un \texttt{take}).
+    \end{itemize}
+    \begin{lstlisting}[language=Clojure]
+(defn fib []
+  (map first (iterate (fn [[a b]] [b (+ a b)]) [0 1])))
+
+(take 7 (fib))
+;; => (0 1 1 2 3 5 8)
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Impacto en la Complejidad}
+    \begin{itemize}
+        \item \textbf{Tiempo:} Procesar un elemento a través del pipeline es $O(n)$, pero podemos abortar temprano si usamos \texttt{take}, convirtiendo búsquedas pesadas en $O(k)$ donde $k$ es el elemento encontrado.
+        \item \textbf{Espacio:} Evaluando $O(1)$ a la vez. No hay duplicación de listas (Garbage Collector limpia elementos ya procesados a medida que avanzamos).
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Casos del Mundo Real}
+    ¿Dónde brilla esto en la industria?
+    \begin{itemize}
+        \item \textbf{Data Analytics:} Procesar archivos de logs de 50GB en máquinas con 8GB de RAM. Se procesan línea por línea.
+        \item \textbf{Data Scraping:} Paginación infinita. Tratar las páginas web o llamadas a una API rest como un flujo continuo hasta que un predicado sea falso.
+    \end{itemize}
+\end{frame}
+
+\section{Ejercicios Prácticos}
+
+\begin{frame}[fragile]
+    \frametitle{Reto 1: Criba Financiera}
+    Dada la siguiente colección de mapas:
+    \begin{lstlisting}[language=Clojure]
+(def txs [{:monto 1000 :tipo :deposito}
+          {:monto -50  :tipo :retiro}
+          {:monto -200 :tipo :retiro}
+          {:monto 500  :tipo :deposito}])
+    \end{lstlisting}
+    \textbf{Objetivo:} Usar el macro \texttt{->>} para obtener la \textbf{suma absoluta} de todos los \texttt{:retiro} mayores a 100.
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Reto 2: Aplanando el laberinto}
+    Tenemos una estructura jerárquica de archivos:
+    \begin{lstlisting}[language=Clojure]
+(def sistema
+  [{:dir "src" :archivos ["main.clj" "core.clj"]}
+   {:dir "test" :archivos ["main_test.clj"]}
+   {:dir "assets" :archivos ["logo.png"]}])
+    \end{lstlisting}
+    \textbf{Objetivo:} Usar un pipeline que incluya \texttt{mapcat} y \texttt{filter} para retornar únicamente los archivos que terminen en ".clj".
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Reto 3: Jugando con el infinito}
+    \textbf{Objetivo:} Crear una secuencia perezosa e infinita de números impares. Luego, extraer solo los elementos desde la posición 100 hasta la 105.
+    \vspace{0.5cm}
+
+    \\
+    \textit{Pista:} Investiga qué hace la función \texttt{drop} en combinación con \texttt{take}.
+\end{frame}
+
+\begin{frame}
+    \begin{center}
+        \Huge ¡Gracias!
+        \vspace{1cm}
+    \end{center}
+\end{frame}
+
+\end{document}
