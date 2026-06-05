@@ -1,0 +1,780 @@
+\documentclass{beamer}
+% Compatibilidad de motor: fontspec en XeTeX/LuaTeX (tectonic),
+% inputenc/fontenc en pdfLaTeX (Overleaf). Esto evita que los
+% signos ¿ y ¡ se rendericen mal y conserva el estilo original.
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{lmodern}
+\else
+  \usepackage{fontspec}
+\fi
+\usepackage[spanish]{babel}
+\usepackage{algorithmic, algorithm, listings, tikz}
+\usepackage{circuitikz}
+
+
+
+\usetikzlibrary{arrows.meta}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, backgrounds}
+
+\definecolor{nubankpurple}{RGB}{130, 10, 209}
+\definecolor{lambdaorange}{RGB}{255, 140, 0}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{ 150 , 150 , 150 }
+\definecolor{handwriting}{rgb}{0.6, 0.2, 0.2}
+
+\lstset{
+    language=Java,
+    backgroundcolor=\color{backcolour},  
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\scriptsize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstdefinelanguage{Clojure}{
+    morekeywords={reduce,reductions,reduced,loop,recur,map,filter,mapcat,apply,into,update,fnil,conj,assoc,contains?,first,rest,empty?,even?,odd?,zero?,pos?,neg?,inc,dec,quot,rem,max,min,range,take,drop,defn,def,fn,if,when,let,do,str,println},
+    sensitive=true,
+    morecomment=[l]{;},
+    morestring=[b]",
+}
+
+
+\usetheme[pageofpages=of,logo=logo_semillero_fp.png]{Unipd}
+
+\title{Sesión 6: Bucles, Reducciones y \texttt{loop/recur}}
+\subtitle{Semillero en Ciencias de la Computación}
+\author[Rodríguez, López]{Santiago López \and Tomas Rodríguez}
+
+\date{Junio 5, 2026}
+
+\AtBeginSection[]
+{
+  \begin{frame}
+    \frametitle{Tabla de Contenidos}
+    \tableofcontents[currentsection,hideothersubsections,sectionstyle=show/hide]
+  \end{frame}
+}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\begin{frame}{Tabla de contenidos}
+    \tableofcontents    
+\end{frame}
+
+\begin{frame}{Punto de partida}
+    \begin{block}{Idea de hoy}
+        Cuando un bucle no transforma uno a uno (\texttt{map}) ni descarta elementos (\texttt{filter}), casi siempre está haciendo otra cosa: \textbf{acumular} un resultado (\textbf{reducción}).
+    \end{block}
+
+    \vspace{0.3cm}
+    Reconstruiremos bucles imperativos con \texttt{reduce}, agregamos \texttt{reductions} para conservar la historia del cálculo y dejamos \texttt{loop/recur} para el caso en que ninguna función de alto nivel encaje.
+\end{frame}
+
+\section{Recapitulando}
+
+\begin{frame}
+\frametitle{Lo que ya hemos visto}
+\begin{itemize}
+    \item \textbf{\texttt{map}:} aplica una función a cada elemento y devuelve una colección del mismo tamaño.
+    \item \textbf{\texttt{filter}:} conserva los elementos que cumplen un predicado.
+    \item \textbf{\texttt{reduce}:} combina todos los elementos en un único resultado.
+\end{itemize}
+\vspace{0.3cm}
+¿Podemos implementar \textit{map} o \textit{filter} usando \textit{reduce}?
+\end{frame}
+
+\section{La forma de un bucle}
+
+\begin{frame}[fragile]{Un bucle imperativo cualquiera}
+    Sumemos los movimientos de una cuenta en Java:
+
+    \begin{lstlisting}[language=Java]
+    int total = 0;
+    for (int x : movimientos) {
+        total += x;
+    }
+    return total;
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item ¿Qué pasa si queremos el producto, el máximo o el conteo?
+        \item Tendríamos que reescribir el bucle entero cada vez.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Bucle acumulador}
+    Todo bucle acumulador tiene la misma estructura:
+
+    \vspace{0.3cm}
+    \begin{center}
+    \begin{tikzpicture}[
+        node distance=0.7cm,
+        caja/.style={draw, rounded corners, align=center, font=\scriptsize, text width=2.6cm, minimum height=1.1cm}
+    ]
+        \node[caja, fill=blue!10] (init) {\textbf{Valor inicial}\\ \texttt{total = 0}};
+        \node[caja, fill=lambdaorange!25, right=of init] (step) {\textbf{Combinación}\\ \texttt{total += x}};
+        \node[caja, fill=gray!15, right=of step] (coll) {\textbf{Iteración}\\ recorrer la colección};
+        \node[caja, fill=green!12, below=0.8cm of step] (res) {\textbf{Resultado}\\ \texttt{total}};
+
+        \draw[->, thick] (init) -- (step);
+        \draw[->, thick] (step) -- (coll);
+        \draw[->, thick] (step) -- (res);
+    \end{tikzpicture}
+    \end{center}
+
+    \vspace{0.2cm}
+    Si separamos esas piezas, el bucle deja de ser un bloque rígido y se vuelve configurable.
+\end{frame}
+
+\begin{frame}[fragile]{El patrón tiene nombre: reducción}
+    Esas piezas son los argumentos de \texttt{reduce}:
+
+    \vspace{0.3cm}
+    \begin{lstlisting}[language=Clojure]
+(reduce  combinacion  valor-inicial  coleccion)
+
+(reduce  +            0              movimientos)
+    \end{lstlisting}
+
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item La \textbf{combinación} es una función \texttt{(fn [acc x] ...)}.
+        \item El \textbf{valor inicial} es el estado del acumulador antes de empezar.
+        \item La \textbf{colección} es lo que se recorre, una sola vez.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Reduce da un molde reutilizable}
+    Cambiar de cálculo ya no significa reescribir un bucle, sino cambiar dos argumentos:
+
+    \begin{lstlisting}[language=Clojure]
+(reduce + 0 xs)                  ;; suma
+(reduce * 1 xs)                  ;; producto
+(reduce max xs)                  ;; maximo
+(reduce (fn [n _] (inc n)) 0 xs) ;; conteo
+    \end{lstlisting}
+
+    \vspace{0.2cm}
+    El bucle imperativo mezclaba estas decisiones con la mecánica de recorrer. 
+\end{frame}
+
+\begin{frame}[fragile]{Ejercicio}
+
+    \begin{block}{Pregunta}
+        ¿Podemos implementar \textit{map} o \textit{filter} usando \textit{reduce}?
+    \end{block}
+    
+
+    \textit{Pista: El acumulador no necesariamiente tiene que ser un número (Ejemplo: función identidad para colecciones).}
+\end{frame}
+
+\begin{frame}[fragile]{\texttt{map} y \texttt{filter} también son reducciones}
+    Si el acumulador es una colección que vamos construyendo con \texttt{conj}, podemos ver a \textit{map} y \textit{filter} como reducciones:
+
+    \begin{lstlisting}[language=Clojure]
+;; map f como reduce
+(reduce (fn [acc x] (conj acc (f x)))
+        [] xs)
+
+;; filter pred como reduce
+(reduce (fn [acc x] (if (pred x) (conj acc x) acc))
+        [] xs)
+    \end{lstlisting}
+
+    \begin{alertblock}{Conclusión}
+        \texttt{reduce} es la operación base. \texttt{map} y \texttt{filter} son casos particulares con un acumulador que resulta ser una colección.
+    \end{alertblock}
+\end{frame}
+
+\section{Profundizando en reduce}
+
+\begin{frame}[fragile]{Las dos formas de \texttt{reduce}}
+    \begin{lstlisting}[language=Clojure]
+(reduce f coll)        ;; sin valor inicial
+(reduce f init coll)   ;; con valor inicial
+    \end{lstlisting}
+
+    \vspace{0.2cm}
+    Sin \texttt{init}, el primer elemento hace de acumulador inicial:
+
+    \begin{lstlisting}[language=Clojure]
+(reduce + [1 2 3])     ;; => 6
+(reduce + [42])        ;; => 42  (nunca llama a +)
+(reduce + [])          ;; => 0   (devuelve (+), el neutro)
+(reduce + 100 [1 2 3]) ;; => 106
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{¿Por qué importa el valor inicial?}
+    \begin{itemize}
+        \item Define qué se devuelve cuando la colección está \textbf{vacía}.
+        \item Fija el \textbf{tipo} del acumulador, que no tiene por qué coincidir con el de los elementos.
+    \end{itemize}
+
+    \vspace{0.3cm}
+    Este segundo punto es el que abre la puerta a casi todo: el acumulador puede ser un número, un texto, un vector o un mapa, mientras los elementos son otra cosa.
+\end{frame}
+
+\begin{frame}[fragile]{El acumulador puede ser un mapa}
+    
+    \begin{block}{Ejercicio}
+    Escribir una función \textit{contar-apariciones} que cuente cuántas veces aparece cada palabra. Entran textos, sale un mapa.
+    \end{block}
+
+    \begin{lstlisting}[language=Clojure]
+    (def v ["a" "b" "a" "c" "a"])
+    (contar-apariciones v)
+    ; => {"a" 3, "b" 1, "c" 1}
+    \end{lstlisting}
+
+\end{frame}
+
+\begin{frame}[fragile]{El acumulador puede ser un mapa}
+    Contemos cuántas veces aparece cada palabra. Entran textos, sale un mapa:
+
+    \begin{lstlisting}[language=Clojure]
+(reduce (fn [conteo palabra]
+          (update conteo palabra (fnil inc 0)))
+        {}
+        ["a" "b" "a" "c" "a"])
+;; => {"a" 3, "b" 1, "c" 1}
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item \texttt{(fnil inc 0)} usa \texttt{inc} si la clave existe y arranca en \texttt{0} si todavía no.
+        \item El acumulador (un mapa) tiene un tipo distinto a los elementos (textos).
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Retorno temprano}
+\begin{Block}
+¿Qué pasa si no queremos recorrer todo el arreglo?
+\end{Block}
+ \begin{lstlisting}[language=cpp]
+ int sum_until_exceeded(vector<int> &a) {
+        int total = 0;
+        for (int i = 0; i < a.size(); i++) {
+                total += a[i];
+                if (total > 100) break;
+        }
+        return total;
+}
+ \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Cortar antes de tiempo con \texttt{reduced}}
+    \texttt{reduced} envuelve el acumulador y detiene la reducción de inmediato:
+
+    \begin{lstlisting}[language=Clojure]
+(reduce (fn [acc x]
+          (if (> acc 100)
+            (reduced acc)
+            (+ acc x)))
+        0
+        (range))
+;; => 105
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item \texttt{(range)} es infinita, pero la reducción termina apenas se cumple la condición.
+        \item Es el equivalente funcional del \texttt{break} de un bucle imperativo.
+    \end{itemize}
+\end{frame}
+
+\section{reductions: conservar la historia}
+
+\begin{frame}{Un problema interesante}
+    
+    \textit{Tomado de: Codeforces Div2 ronda 248}
+
+    Camila tiene $n$ piedras, numeradas del $1$ al $n$. 
+    El costo de la $i$-ésima piedra es $v_i$.
+    
+    \vspace{0.3cm}
+    Nos hará $m$ preguntas sobre la suma de los costos en ciertos rangos. Hay 2 tipos de preguntas:
+    
+\end{frame}
+
+
+\begin{frame}{Tipos de Consultas}
+    Para cada pregunta nos darán un rango desde el índice $l$ hasta el índice $r$:
+
+    \begin{enumerate}
+        \item \textbf{Tipo 1: Arreglo Original}
+        Calcular la suma en el arreglo tal como se nos entregó:
+        $$\sum_{i=l}^r v_i$$
+        
+        \item \textbf{Tipo 2: Arreglo Ordenado}
+        Calcular la suma si las piedras estuvieran ordenadas de menor a mayor ($u_1, u_2, \dots, u_n$):
+        $$\sum_{i=l}^r u_i$$
+    \end{enumerate}
+\end{frame}
+
+
+\begin{frame}{Especificaciones de Entrada}
+    \begin{itemize}
+        \item \textbf{Lista $v$:} lista de enteros que corresponden a los valores individuales.
+        \item \textbf{Lista $q$:} lista de consultas de la forma $[t, l, r]$, donde $t$ es el tipo de consulta y $l, r$ son los límites del rango.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Ejemplo de entrada}
+    Trabajaremos con un caso pequeño para ver la solución paso a paso:
+
+    \begin{lstlisting}[language=Clojure]
+;; TEST 2
+(def v [5 5 2 3])
+(def q [[1 2 4] [2 1 4] [1 1 1] [2 1 4]
+        [2 1 2] [1 1 1] [1 3 3] [1 1 3]
+        [1 4 4] [1 2 2]])
+    \end{lstlisting}
+
+    Cada consulta tiene tres datos: tipo de arreglo, límite izquierdo y límite derecho.
+
+    \begin{block}{Ejercicio}
+        Proponga una solución al problema
+    \end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Idea clave: suma de prefijos}
+    \begin{enumerate}
+        \item ¿Qué es la suma de prefijos? (Prefix sum en inglés)
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Idea clave: suma de prefijos}
+    \begin{enumerate}
+        \item ¿Qué es la suma de prefijos? (Prefix sum en inglés)
+        \item ¿Para qué se usa la suma de prefijos?
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Idea clave: suma de prefijos}
+    \begin{enumerate}
+        \item ¿Qué es la suma de prefijos? (Prefix sum en inglés)
+        \item ¿Para qué se usa la suma de prefijos?
+        \item ¿Cómo se implementaría una prefix en clojure?
+    \end{enumerate}
+\end{frame}
+
+
+\begin{frame}[fragile]{Implementando una prefix}
+    Para responder rápido una suma de rango, guardamos las sumas acumuladas desde el inicio:
+
+    \begin{lstlisting}[language=Clojure]
+;; Agregamos un 0 al inicio para facilitar los rangos
+(def pfx_1 (reduce #(conj \%1 (+ (last \%1) \%2)) [0] v))
+;; => [0 5 10 12 15]
+
+(def pfx_2 (reduce #(conj \%1 (+ (last \%1) \%2)) [0] (sort v)))
+;; => [0 2 5 10 15]
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item \texttt{pfx\_1} sirve para las consultas sobre el arreglo original.
+        \item \texttt{pfx\_2} sirve para las consultas sobre el arreglo ordenado.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Consultar un rango con prefijos}
+    Si tenemos las sumas de prefijos, la suma entre $l$ y $r$ se obtiene restando dos posiciones:
+
+    \begin{lstlisting}[language=Clojure]
+(defn pfx_query [pfx l r]
+  (- (nth pfx r) (nth pfx (dec l))))
+    \end{lstlisting}
+
+    \vspace{0.2cm}
+    Por ejemplo, para sumar desde $2$ hasta $4$ en el arreglo original:
+
+    \begin{lstlisting}[language=Clojure]
+(pfx_query pfx_1 2 4)
+;; (- (nth pfx_1 4) (nth pfx_1 1))
+;; (- 15 5) => 10
+    \end{lstlisting}
+
+    \textbf{Pregunta:} ¿Qué haría falta para resolver el problema?
+    
+\end{frame}
+
+\begin{frame}[fragile]{Resolver todas las consultas}
+    Recorremos la lista de consultas con \texttt{map}:
+
+    \begin{lstlisting}[language=Clojure]
+(map (fn [[type l r]]
+       (if (= type 1)
+         (pfx_query pfx_1 l r)
+         (pfx_query pfx_2 l r)))
+     q)
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item Si \texttt{type} es \texttt{1}, usamos \texttt{pfx\_1}.
+        \item Si \texttt{type} es \texttt{2}, usamos \texttt{pfx\_2}.
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}[fragile]{Cuando el resultado final no basta}
+    \texttt{reduce} entrega solo el acumulador final. A veces queremos \textbf{todos los estados intermedios}: el saldo después de cada movimiento, el máximo hasta cada punto, el avance acumulado.
+
+    \vspace{0.3cm}
+    Para eso existe \texttt{reductions}.
+\end{frame}
+
+\begin{frame}[fragile]{\texttt{reductions} paso a paso}
+    \texttt{reductions} hace el mismo recorrido que \texttt{reduce}, pero devuelve la secuencia de acumuladores parciales:
+
+    \begin{lstlisting}[language=Clojure]
+(reduce + [1 2 3 4])
+;; => 10
+
+(reductions + [1 2 3 4])
+;; => (1 3 6 10)
+
+(reductions + 0 [1 2 3 4])
+;; => (0 1 3 6 10)
+    \end{lstlisting}
+
+    \vspace{0.2cm}
+    El último elemento de \texttt{reductions} es siempre lo que habría devuelto \texttt{reduce}.
+\end{frame}
+
+\begin{frame}[fragile]{Refactorizando}
+    ¿Cómo se podría mejorar la solución al problema usando \textit{reductions}?
+\end{frame}
+
+\begin{frame}[fragile]{Refactorizando}
+    
+    ¿Qué error hay en la siguiente solución?
+
+    \begin{lstlisting}[language=Clojure]
+    (def pfx_1 (reductions + v))
+    (def pfx_2 (reductions + (sort v)))
+    \end{lstlisting}
+
+
+\end{frame}
+
+\begin{frame}[fragile]{reduce frente a reductions}
+\begin{table}[h!]
+\centering
+\scriptsize
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Característica} & \textbf{reduce} & \textbf{reductions} \\ \hline
+Devuelve & El acumulador final & Todos los acumuladores \\ \hline
+Forma de salida & Un valor & Una secuencia \\ \hline
+Evaluación & Estricta & Perezosa \\ \hline
+Pregunta que responde & ¿Cuál es el total? & ¿Cómo evolucionó el total? \\ \hline
+Caso típico & Suma, conteo, mapa & Saldo, máximo corrido \\ \hline
+\end{tabular}
+\end{table}
+\vspace{0.2cm}
+\begin{center}
+\small Misma maquinaria de recorrido; cambia qué tanto conservamos del camino.
+\end{center}
+\end{frame}
+
+\section{Cuando reduce no alcanza: loop/recur}
+
+\begin{frame}[fragile]{Recursión de cola}
+
+¿Cuál es la diferencia entre estas funciones?
+
+\begin{lstlisting}[language=Clojure]
+(defn factorial-1 [n]
+  (if (= n 1)
+    1
+    (* n (factorial-comun (dec n)))))
+\end{lstlisting}
+
+\begin{lstlisting}[language=Clojure]
+  (defn factorial-2 [n acc]
+  (if (= n 1)
+    acc ; 
+    (factorial-cola (dec n) (* acc n))))
+\end{lstlisting}
+
+\end{frame}
+
+
+
+\begin{frame}[fragile]{Is this assembly?}
+    Presentamos la función loop y recur.
+
+\begin{lstlisting}[language=Clojure]
+(loop [n   5
+       acc 1]
+  (if (zero? n)
+    acc
+    (recur (dec n) (* acc n))))
+;; => 120
+\end{lstlisting}
+
+\begin{itemize}
+        \item \texttt{loop} fija un punto de retorno y los valores iniciales.
+        \item \texttt{recur} vuelve a ese punto con nuevos valores, sin crecer la pila.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{La mamá de la mamá}
+    Observe que \texttt{reduce} es un \texttt{loop/recur} con un patrón fijo:
+
+    \begin{lstlisting}[language=Clojure]
+(defn mi-reduce [f init coll]
+  (loop [acc init
+         xs  coll]
+    (if (empty? xs)
+      acc
+      (recur (f acc (first xs))
+             (rest xs)))))
+    \end{lstlisting}
+
+    \vspace{0.2cm}
+    \texttt{reduce} fija el recorrido (un elemento tras otro, hasta vaciar la colección). \texttt{loop/recur} nos devuelve el control de ese recorrido cuando lo necesitamos.
+\end{frame}
+
+\begin{frame}{¿Cuándo bajar a \texttt{loop/recur}?}
+    La regla práctica: primero \texttt{map}, \texttt{filter}, \texttt{reduce} o \texttt{reductions}. Solo si ninguno encaja, \texttt{loop/recur}. Casos donde sí encaja:
+    \begin{itemize}
+        \item No iteramos sobre una colección, sino que \textbf{generamos un estado} hasta cumplir una condición de parada.
+        \item Avanzamos a \textbf{ritmo irregular}: a veces consumimos uno, a veces varios elementos.
+        \item Llevamos \textbf{varios acumuladores} a la vez con una lógica de parada propia.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Collatzzz}
+    La longitud de la secuencia de Collatz: no recorremos una colección dada, generamos números hasta llegar a 1.
+
+    \begin{lstlisting}[language=Clojure]
+(defn pasos-collatz [n]
+  (loop [x     n
+         pasos 0]
+    (if (= x 1)
+      pasos
+      (recur (if (even? x) (quot x 2) (inc (* 3 x)))
+             (inc pasos)))))
+
+(pasos-collatz 6) ;; => 8
+    \end{lstlisting}
+
+    No hay colección de entrada que reducir: el siguiente valor depende del actual.
+\end{frame}
+
+\section{¿Qué herramienta uso?}
+
+\begin{frame}{Un criterio de decisión}
+    \vfill
+    \begin{center}
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[
+        dec/.style={diamond, aspect=2, draw, thick, fill=blue!8, align=center, inner sep=1pt, font=\small},
+        res/.style={rectangle, rounded corners, draw, thick, fill=lambdaorange!25, align=center, font=\small\ttfamily, minimum width=2cm, minimum height=0.8cm},
+        arr/.style={->, thick, >=Stealth}
+    ]
+        % fila de decisiones
+        \node[dec] (d1) at (0,0)    {¿Transformo\\1 a 1?};
+        \node[dec] (d2) at (3.9,0)  {¿Filtro?};
+        \node[dec] (d3) at (7.8,0)  {¿Colapso a\\un valor?};
+        \node[dec] (d4) at (11.9,0) {¿Quiero los\\intermedios?};
+        \node[res, fill=nubankpurple!20] (lr) at (15.8,0) {loop/recur};
+
+        % fila de resultados
+        \node[res] (r1) at (0,2.4)    {map};
+        \node[res] (r2) at (3.9,2.4)  {filter};
+        \node[res] (r3) at (7.8,2.4)  {reduce};
+        \node[res] (r4) at (11.9,2.4) {reductions};
+
+        % salidas afirmativas (hacia arriba)
+        \draw[arr] (d1) -- node[right, font=\footnotesize]{sí} (r1);
+        \draw[arr] (d2) -- node[right, font=\footnotesize]{sí} (r2);
+        \draw[arr] (d3) -- node[right, font=\footnotesize]{sí} (r3);
+        \draw[arr] (d4) -- node[right, font=\footnotesize]{sí} (r4);
+
+        % cadena de negativas (hacia la derecha)
+        \draw[arr] (d1) -- node[above, font=\footnotesize]{no} (d2);
+        \draw[arr] (d2) -- node[above, font=\footnotesize]{no} (d3);
+        \draw[arr] (d3) -- node[above, font=\footnotesize]{no} (d4);
+        \draw[arr] (d4) -- node[above, font=\footnotesize]{no} (lr);
+    \end{tikzpicture}
+    }
+    \end{center}
+    \vfill
+\end{frame}
+
+\begin{frame}{La idea de fondo}
+    \begin{block}{Una sola sintaxis ocultaba varias decisiones}
+        El bucle imperativo mezclaba en un mismo \texttt{for} la transformación, el filtrado, la acumulación y el control del recorrido. Cada herramienta de hoy aísla una de esas intenciones y le pone nombre.
+    \end{block}
+    \vspace{0.3cm}
+    \texttt{loop/recur} queda al final del diagrama a propósito: es la salida cuando el problema ya no tiene la forma de ``recorrer una colección''.
+\end{frame}
+
+\section{Ejercicios Prácticos}
+
+\begin{emptyframe}
+    Ejercicios Prácticos
+\end{emptyframe}
+
+\begin{frame}[fragile]{Reto 0: fila n del Tríangulo de Pascal}
+    Implementa el problema del incio usando una reducción.\\ 
+
+    Pista: Los coeficientes binomiales cumplen que
+    $$c_k = \frac{c_{k-1} \cdot (n - k)}{k}$$
+\end{frame}
+
+\begin{frame}[fragile]{Reto 0: solución}
+    \begin{lstlisting}[language=Clojure]
+    (defn pascal [n]
+        (reductions (fn [c k] (/ (* c (- n k)) k))
+        1
+        (range 1 n)))
+
+    (pascal 5) ;; => (1 4 6 4 1)
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Reto 1: del bucle a la reducción}
+    El siguiente bucle en Java cuenta las vocales de una palabra:
+
+    \begin{lstlisting}[language=Java]
+    int vocales = 0;
+    for (char c : palabra.toCharArray()) {
+        if ("aeiou".indexOf(c) >= 0) {
+            vocales++;
+        }
+    }
+    \end{lstlisting}
+
+    \textbf{Objetivo:} expresarlo en Clojure con \texttt{reduce}, identificando primero el valor inicial y la función de combinación.
+\end{frame}
+
+\begin{frame}[fragile]{Reto 1: solución}
+    El valor inicial es \texttt{0} y la combinación suma 1 cuando el carácter es vocal:
+
+    \begin{lstlisting}[language=Clojure]
+(defn vowel? [letra]
+  (contains? (set "aeiou") letra))
+
+(defn cuenta-vocales [palabra]
+  (reduce 
+    (fn [acc x] 
+        (if (vowel? x) (inc acc) acc))
+    0 
+    palabra))
+
+(cuenta-vocales "programacion") ;; => 5
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Reto 2: construir un mapa con \texttt{reduce}}
+    Dada una colección de votos:
+
+    \begin{lstlisting}[language=Clojure]
+(def votos [:si :no :si :si :no :abstencion])
+    \end{lstlisting}
+
+    \textbf{Objetivo:} usar \texttt{reduce} para devolver un mapa con el conteo de cada opción.
+\end{frame}
+
+\begin{frame}[fragile]{Reto 2: solución}
+    Mismo patrón que el conteo de palabras, ahora sobre claves:
+
+    \begin{lstlisting}[language=Clojure]
+(reduce (fn [conteo voto]
+          (update conteo voto (fnil inc 0)))
+        {}
+        votos)
+;; => {:si 3, :no 2, :abstencion 1}
+    \end{lstlisting}
+\end{frame}
+
+\begin{frame}[fragile]{Reto 3: la historia del saldo}
+    Con el saldo inicial y los movimientos:
+
+    \begin{lstlisting}[language=Clojure]
+(def saldo-inicial 1000)
+(def movimientos [-300 -400 -500 200])
+    \end{lstlisting}
+
+    \textbf{Objetivo:}
+    \begin{enumerate}
+        \item Calcular el saldo después de cada movimiento con \texttt{reductions}.
+        \item Encontrar el primer saldo que queda en negativo.
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}[fragile]{Reto 3: solución}
+    \texttt{reductions} reconstruye la historia del saldo; \texttt{filter} con \texttt{first} encuentra el primer negativo:
+
+    \begin{lstlisting}[language=Clojure]
+(def saldos
+  (reductions + saldo-inicial movimientos))
+;; => (1000 700 300 -200 0)
+
+(first (filter neg? saldos))
+;; => -200
+    \end{lstlisting}
+
+    Gracias a la pereza, \texttt{filter} detiene el recorrido en cuanto encuentra el primer saldo negativo: no calcula de más.
+\end{frame}
+
+\begin{frame}[fragile]{Reto 4: cuando solo queda \texttt{loop/recur}}
+    El máximo común divisor por el algoritmo de Euclides: mientras $b \neq 0$, se reemplaza el par $(a, b)$ por $(b, a \bmod b)$.
+
+    \vspace{0.3cm}
+    \textbf{Objetivo:} implementar \texttt{(mcd a b)} con \texttt{loop/recur}.
+
+    \vspace{0.3cm}
+    \textit{Pregunta para discutir: ¿por qué este problema no encaja cómodamente en \texttt{reduce}?}
+\end{frame}
+
+\begin{frame}[fragile]{Reto 4: solución}
+    \begin{lstlisting}[language=Clojure]
+(defn mcd [a b]
+  (loop [a a
+         b b]
+    (if (zero? b)
+      a
+      (recur b (rem a b)))))
+
+(mcd 48 36) ;; => 12
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item No hay colección de entrada: el siguiente par $(b, a \bmod b)$ se calcula a partir del actual.
+        \item El número de pasos no se conoce de antemano; depende de los valores, no de un tamaño.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Cierre}
+    \begin{itemize}
+        \item El bucle imperativo que acumula un resultado es una reducción.
+        \item \texttt{reduce} colapsa; \texttt{reductions} conserva el camino; ambos comparten la misma maquinaria de recorrido.
+        \item \texttt{loop/recur} es la herramienta de bajo nivel, reservada para cuando la forma del problema no es recorrer una colección.
+    \end{itemize}
+\end{frame}
+
+\begin{emptyframe}
+    ¡Gracias!\\
+    \vspace{0.5cm}
+\end{emptyframe}
+
+\end{document}
